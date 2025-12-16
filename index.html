@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quản lý kho ô tô đầu kéo</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img class="truck" src="./assets/truck-header.png" alt="Xe đầu kéo">
+      <div>
+        <div class="title">QUẢN LÝ KHO Ô TÔ ĐẦU KÉO</div>
+        <div class="sub">Khách xem tự do • Admin nhập token để chỉnh sửa • 10.000+ sản phẩm</div>
+      </div>
+    </div>
+    <div class="pill" id="rolePill">GUEST</div>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <div class="row">
+        <input id="search" class="input" placeholder="Tìm OEM / OEM thay thế / Tên / Thương hiệu..." />
+        <input id="filterBrand" class="input" placeholder="Lọc thương hiệu" />
+        <input id="filterLoai" class="input" placeholder="Lọc loại" />
+        <button class="btn" id="btnSearch">Tìm</button>
+        <button class="btn primary" id="btnAdd" style="display:none;">+ Thêm</button>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button class="btn" id="btnPrev">← Trang trước</button>
+        <div class="hint" id="pageInfo">Trang 1</div>
+        <button class="btn" id="btnNext">Trang sau →</button>
+      </div>
+
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Hình</th>
+              <th>OEM</th>
+              <th>Tên</th>
+              <th>Loại</th>
+              <th>Thương hiệu</th>
+              <th>Giá bán</th>
+              <th>OEM thay thế</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="productsTbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL: Chi tiết / Sửa / Thêm -->
+  <div class="modal" id="productModal">
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div class="modalTitle" id="modalTitle">Chi tiết sản phẩm</div>
+        <button class="btn ghost" id="btnClose">Đóng</button>
+      </div>
+
+      <div class="grid">
+        <input id="p_id" class="input" placeholder="ID" disabled />
+        <input id="p_oem" class="input" placeholder="OEM" />
+        <input id="p_oem_alts" class="input" placeholder="OEM thay thế (cách nhau bằng dấu phẩy)" />
+        <input id="p_ten" class="input" placeholder="Tên" />
+        <input id="p_dvt" class="input" placeholder="ĐVT" />
+        <input id="p_loai" class="input" placeholder="Loại" />
+        <input id="p_brand" class="input" placeholder="Thương hiệu" />
+        <input id="p_price" class="input" placeholder="Giá bán" />
+        <input id="p_image_url" class="input" placeholder="Link ảnh (tự có khi upload)" />
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <!-- Chọn ảnh hoặc camera -->
+        <input id="p_image_file" class="input" type="file" accept="image/*" capture="environment" />
+        <button class="btn primary" id="btnUploadImage">Upload ảnh</button>
+        <div class="hint">Chọn ảnh có sẵn hoặc chụp camera trực tiếp (trên điện thoại).</div>
+      </div>
+
+      <div class="preview">
+        <img id="imgPreview" alt="preview">
+      </div>
+
+      <div class="row right" style="margin-top:10px;">
+        <button class="btn primary" id="btnSave">Lưu</button>
+        <button class="btn danger" id="btnDelete">Xóa</button>
+      </div>
+
+      <div class="hint" id="modalHint"></div>
+    </div>
+  </div>
+
+  <!-- LOGIN MODAL: oval KHÁCH/ADMIN -->
+  <div class="modal" id="loginModal" style="display:flex;">
+    <div class="loginCard">
+      <div class="loginTitle">Chọn chế độ truy cập</div>
+      <div class="pillRow">
+        <button class="pillBtn" id="pickGuest">KHÁCH</button>
+        <button class="pillBtn" id="pickAdmin">ADMIN</button>
+      </div>
+
+      <div id="adminTokenRow" style="display:none;margin-top:12px;">
+        <input id="loginAdminToken" class="input" style="width:100%;" placeholder="Nhập token Admin..." />
+        <button class="btn primary" id="btnAdminEnter" style="margin-top:10px;width:100%;">Vào với quyền Admin</button>
+        <div class="hint">Token nằm trong sheet ADMIN_TOKENS.</div>
+      </div>
+
+      <button class="btn" id="btnGuestEnter" style="margin-top:12px;width:100%;">Vào với chế độ Khách</button>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <marquee>© Bản quyền thuộc về Hải Võ Thanh – Hệ thống quản lý kho ô tô đầu kéo</marquee>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
