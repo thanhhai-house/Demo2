@@ -1,4 +1,4 @@
-const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwybqENyxvPS8kHvz46S0uZNAMBxICt6xEjIr9x6bldURm8F1PzGetHih0NZ18HXCUacA/exec"; // .../exec
+const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzE4uRNgUT9joVgCCBfBTx0nIdtLQP_O1V8P0VBxaWuTkbuKWBThQIGzO8CDU6lxChTzA/exec"; // .../exec
 const $ = (id) => document.getElementById(id);
 
 /* ===== JSONP ===== */
