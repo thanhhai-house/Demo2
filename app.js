@@ -1,299 +1,411 @@
-const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzE4uRNgUT9joVgCCBfBTx0nIdtLQP_O1V8P0VBxaWuTkbuKWBThQIGzO8CDU6lxChTzA/exec"; // .../exec
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlWL5dyWSf_JEMzeYyz1x3xaOA-LLUr2jImq8lwRjcZj4PKqoldbuoaslIDcrdJXceMg/exec';
+
+const S = {
+  role: null,     // 'guest' | 'admin'
+  session: null,  // admin session từ Apps Script
+  kho: [],
+  shop: [],
+  history: [],
+  trash: [],
+  chart: [],
+  place: 'KHO',
+  current: null,
+  chartObj: null,
+};
+
 const $ = (id) => document.getElementById(id);
 
-/* ===== JSONP ===== */
-function api(action, data = {}) {
-  return new Promise((resolve) => {
-    const cb = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
-    window[cb] = (res) => {
-      try { resolve(res); } finally {
-        delete window[cb];
-        script.remove();
-      }
-    };
-    const url = new URL(GAS_WEBAPP_URL);
-    url.searchParams.set("action", action);
-    url.searchParams.set("callback", cb);
-    url.searchParams.set("data", encodeURIComponent(JSON.stringify(data)));
+const UI = {
+  show(el){ $(el).style.display='flex'; },
+  hide(el){ $(el).style.display='none'; },
 
-    const script = document.createElement("script");
-    script.src = url.toString();
-    document.body.appendChild(script);
-  });
-}
+  openLogin(){ UI.show('loginModal'); },
+  closeLogin(){ UI.hide('loginModal'); },
 
-/* ===== State ===== */
-let isAdmin = false;
-let token = "";
-let products = [];
-let page = 1;
-const pageSize = 100;
-let total = 0;
+  closeDetail(){ UI.hide('detailModal'); },
+  closeAdd(){ UI.hide('addModal'); },
+  closeHistory(){ UI.hide('historyModal'); },
+  closeTrash(){ UI.hide('trashModal'); },
 
-/* ===== Role ===== */
-function setRole(admin) {
-  isAdmin = admin;
-  $("rolePill").textContent = admin ? "ADMIN" : "GUEST";
-  $("btnAdd").style.display = admin ? "inline-block" : "none";
-  $("btnSave").disabled = !admin;
-  $("btnDelete").disabled = !admin;
-  $("btnUploadImage").disabled = !admin;
-}
-function openLogin() { $("loginModal").style.display = "flex"; $("adminTokenRow").style.display = "none"; }
-function closeLogin() { $("loginModal").style.display = "none"; }
-function openModal() { $("productModal").style.display = "flex"; }
-function closeModal() { $("productModal").style.display = "none"; }
+  printBill(){
+    const q = Number($('qty').value||0);
+    if (!q || q<=0) return alert('Nhập số lượng > 0');
+    const total = q * Number(S.current.gia||0);
 
-function money(n) { return Number(n || 0).toLocaleString("vi-VN"); }
+    const w = window.open('', '_blank');
+    w.document.write(`
+      <html><head><meta charset="utf-8"><title>Bill</title>
+      <style>
+        body{font-family:Arial;padding:20px}
+        h2{margin:0 0 10px}
+        .box{border:1px solid #ddd;padding:14px;border-radius:10px}
+        .row{display:flex;justify-content:space-between;margin:6px 0}
+        .muted{color:#555}
+      </style></head><body>
+      <h2>HÓA ĐƠN BÁN HÀNG</h2>
+      <div class="muted">${new Date().toLocaleString()}</div>
+      <div class="box">
+        <div class="row"><div>Tên</div><div><b>${esc(S.current.ten)}</b></div></div>
+        <div class="row"><div>OEM</div><div>${esc(S.current.oem)}</div></div>
+        <div class="row"><div>Số lượng</div><div>${q}</div></div>
+        <div class="row"><div>Đơn giá</div><div>${money(S.current.gia)}</div></div>
+        <hr/>
+        <div class="row"><div><b>Tổng</b></div><div><b>${money(total)}</b></div></div>
+      </div>
+      <p class="muted">Cảm ơn quý khách!</p>
+      <script>window.print();</script>
+      </body></html>
+    `);
+    w.document.close();
+  }
+};
 
-/* ===== Load products (paged) ===== */
-async function loadProducts(resetPage) {
-  if (resetPage) page = 1;
+const API = {
+  async getPublic(){
+    const r = await fetch(`${APP_SCRIPT_URL}?action=publicGet`);
+    return r.json();
+  },
+  async getAdmin(){
+    const r = await fetch(`${APP_SCRIPT_URL}?action=adminGet&session=${encodeURIComponent(S.session)}`);
+    return r.json();
+  },
+  async post(payload){
+    const r = await fetch(APP_SCRIPT_URL, { method:'POST', body: JSON.stringify(payload) });
+    return r.json();
+  },
 
-  const res = await api("getProductsPaged", {
-    search: $("search").value.trim(),
-    brand: $("filterBrand").value.trim(),
-    loai: $("filterLoai").value.trim(),
-    page,
-    pageSize,
-    activeOnly: true
-  });
-  if (!res.ok) return alert("Lỗi load: " + (res.error || "unknown"));
+  async loginAdmin(name, token){
+    return API.post({ action:'login', name, token });
+  },
 
-  total = res.data.total || 0;
-  products = res.data.items || [];
-  renderProducts();
-}
+  mustAdmin(){
+    if (S.role !== 'admin' || !S.session) throw new Error('Not admin');
+  },
+  qty(){
+    const q = Number($('qty').value||0);
+    if (!q || q<=0) { alert('Nhập số lượng > 0'); return null; }
+    return q;
+  },
 
-function renderProducts() {
-  $("productsTbody").innerHTML = products.map(p => `
-    <tr>
-      <td>${p.image ? `<img src="${p.image}" alt="img">` : ""}</td>
-      <td><b>${p.oem}</b><div class="hint">ID: ${p.id}</div></td>
-      <td>${p.ten}</td>
-      <td>${p.loai}</td>
-      <td>${p.brand}</td>
-      <td>${money(p.price)}</td>
-      <td>${p.oem_alts || ""}</td>
-      <td><button class="btn" data-id="${p.id}">Chi tiết</button></td>
-    </tr>
-  `).join("");
+  async nhap(noi){
+    API.mustAdmin();
+    const q = API.qty(); if(!q) return;
+    const res = await API.post({ action:'changeStock', session:S.session, noi, id:S.current.id, sl:q });
+    if(res.error) return alert(res.error);
+    location.reload();
+  },
+  async xuat(noi){
+    API.mustAdmin();
+    const q = API.qty(); if(!q) return;
+    const res = await API.post({ action:'changeStock', session:S.session, noi, id:S.current.id, sl:-q });
+    if(res.error) return alert(res.error);
+    location.reload();
+  },
+  async transfer(from,to){
+    API.mustAdmin();
+    const q = API.qty(); if(!q) return;
+    const res = await API.post({ action:'transfer', session:S.session, id:S.current.id, sl:q, from, to });
+    if(res.error) return alert(res.error);
+    location.reload();
+  },
+  async sell(){
+    API.mustAdmin();
+    const q = API.qty(); if(!q) return;
+    const res = await API.post({ action:'sell', session:S.session, id:S.current.id, sl:q });
+    if(res.error) return alert(res.error);
+    location.reload();
+  },
 
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
-  $("pageInfo").textContent = `Trang ${page}/${maxPage} • Tổng ${total.toLocaleString("vi-VN")} sản phẩm`;
+  async deleteSoft(){
+    API.mustAdmin();
+    const oem = String(S.current.oem||'').trim();
+    const confirmOem = prompt(`XÁC NHẬN XÓA MỀM: gõ đúng OEM = ${oem}`);
+    if(!confirmOem) return;
+    const res = await API.post({ action:'deleteSoft', session:S.session, id:S.current.id, confirm_oem:confirmOem.trim(), note:'Xóa mềm trên web' });
+    if(res.error) return alert(res.error);
+    alert('Đã xóa mềm → vào thùng rác');
+    location.reload();
+  },
 
-  $("productsTbody").querySelectorAll("button[data-id]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-id");
-      const p = products.find(x => String(x.id) === String(id));
-      if (p) openDetail(p);
+  async restore(trashRow, oem){
+    API.mustAdmin();
+    const confirmOem = prompt(`XÁC NHẬN KHÔI PHỤC: gõ đúng OEM = ${oem}`);
+    if(!confirmOem) return;
+    const res = await API.post({ action:'restore', session:S.session, trash_row:trashRow, confirm_oem:confirmOem.trim() });
+    if(res.error) return alert(res.error);
+    alert('Khôi phục thành công');
+    location.reload();
+  },
+
+  // ✅ ID DO WEB TỰ TẠO: tạo ID ở frontend, gửi lên addProduct
+  genId(){
+    // dạng: P-<timestamp>-<random>
+    return `P-${Date.now()}-${Math.floor(Math.random()*1e6)}`;
+  },
+
+  async saveProduct(){
+    API.mustAdmin();
+
+    const f = $('a_img').files?.[0];
+    if(!f) return alert('Chọn ảnh (có thể chụp trực tiếp)');
+
+    const ten = $('a_ten').value.trim();
+    const oem = $('a_oem').value.trim();
+    if(!ten || !oem) return alert('Thiếu Tên hoặc OEM');
+
+    const base64 = await fileToDataURL(f);
+
+    const up = await API.post({
+      action:'uploadImage',
+      session:S.session,
+      base64,
+      filename:`phutung_${Date.now()}_${f.name||'img'}`
     });
-  });
-}
+    if(up.error) return alert(up.error);
 
-/* ===== Detail modal ===== */
-function fillModal(p, mode) {
-  $("modalTitle").textContent = mode === "add" ? "Thêm sản phẩm" : "Chi tiết sản phẩm";
-  $("modalHint").textContent = isAdmin ? "ADMIN: được sửa/xóa/upload ảnh." : "KHÁCH: chỉ xem.";
+    const payload = {
+      action:'addProduct',
+      session:S.session,
+      noi:$('a_noi').value,
 
-  $("p_id").value = p?.id || "";
-  $("p_oem").value = p?.oem || "";
-  $("p_oem_alts").value = p?.oem_alts || "";
-  $("p_ten").value = p?.ten || "";
-  $("p_dvt").value = p?.dvt || "";
-  $("p_loai").value = p?.loai || "";
-  $("p_brand").value = p?.brand || "";
-  $("p_price").value = p?.price ?? "";
-  $("p_image_url").value = p?.image || "";
+      // ✅ id web tự tạo
+      id: API.genId(),
 
-  const img = (p?.image || "").trim();
-  const imgEl = $("imgPreview");
-  if (img) { imgEl.src = img; imgEl.style.display = "block"; }
-  else { imgEl.src = ""; imgEl.style.display = "none"; }
-
-  $("btnDelete").style.display = (isAdmin && p?.id) ? "inline-block" : "none";
-}
-
-function openDetail(p) {
-  fillModal(p, "detail");
-  openModal();
-}
-
-/* ===== Preview local file ===== */
-$("p_image_file").addEventListener("change", () => {
-  const file = $("p_image_file").files?.[0];
-  if (!file) return;
-  $("imgPreview").src = URL.createObjectURL(file);
-  $("imgPreview").style.display = "block";
-});
-
-/* ===== Compress to base64 ===== */
-async function fileToCompressedBase64(file, maxW = 1280, quality = 0.82) {
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = reject;
-    i.src = URL.createObjectURL(file);
-  });
-
-  const ratio = Math.min(1, maxW / img.width);
-  const w = Math.round(img.width * ratio);
-  const h = Math.round(img.height * ratio);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, w, h);
-
-  const dataUrl = canvas.toDataURL("image/jpeg", quality);
-  return dataUrl.split(",")[1];
-}
-
-/* ===== Upload via popup POST (no CORS) ===== */
-function uploadViaPopup({ token, name, mimeType, dataBase64 }) {
-  return new Promise((resolve) => {
-    const popup = window.open("", "uploadWin", "width=460,height=320");
-    if (!popup) return resolve({ ok:false, error:"POPUP_BLOCKED" });
-
-    const handler = (ev) => {
-      if (!ev?.data || ev.data.type !== "UPLOAD_DONE") return;
-      window.removeEventListener("message", handler);
-      resolve(ev.data.data);
-    };
-    window.addEventListener("message", handler);
-
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = GAS_WEBAPP_URL;
-    form.target = "uploadWin";
-
-    const add = (k, v) => {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = k;
-      input.value = v;
-      form.appendChild(input);
+      ten,
+      oem,
+      oem_thay_the:$('a_oemtt').value.trim(),
+      thuong_hieu:$('a_brand').value.trim(),
+      loai:$('a_loai').value.trim(),
+      thong_tin:$('a_info').value.trim(),
+      gia:Number($('a_gia').value||0),
+      so_luong:Number($('a_sl').value||0),
+      hinh_anh: up.url
     };
 
-    add("token", token);
-    add("name", name);
-    add("mimeType", mimeType);
-    add("dataBase64", dataBase64);
+    const res = await API.post(payload);
+    if(res.error) return alert(res.error);
 
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
-  });
-}
+    // ✅ thông báo + reset form (không reload)
+    alert('✅ Thêm sản phẩm thành công!');
 
-$("btnUploadImage").addEventListener("click", async () => {
-  if (!isAdmin) return alert("Chỉ ADMIN mới upload ảnh.");
-  const file = $("p_image_file").files?.[0];
-  if (!file) return alert("Chọn ảnh hoặc chụp camera trước.");
+    $('a_ten').value=''; $('a_oem').value=''; $('a_oemtt').value='';
+    $('a_brand').value=''; $('a_loai').value=''; $('a_gia').value='';
+    $('a_sl').value=''; $('a_info').value=''; $('a_img').value='';
+    $('a_preview').src=''; $('a_preview').style.display='none';
 
-  const base64 = await fileToCompressedBase64(file);
-  const res = await uploadViaPopup({
-    token,
-    name: file.name || `img_${Date.now()}.jpg`,
-    mimeType: "image/jpeg",
-    dataBase64: base64
-  });
+    // ✅ refresh dữ liệu để thấy sản phẩm mới ngay
+    const data = await API.getAdmin();
+    if(!data.error){
+      S.kho = data.kho || [];
+      S.shop = data.cuahang || [];
+      S.chart = data.chart || [];
+      S.history = data.history || [];
+      S.trash = data.trash || [];
+      renderList();
+      drawChart();
+    }
+  }
+};
 
-  if (!res.ok) return alert("Upload lỗi: " + (res.error || "unknown"));
-  $("p_image_url").value = res.url;
-  $("imgPreview").src = res.url;
-  $("imgPreview").style.display = "block";
-  alert("Upload ảnh thành công!");
-});
+init();
 
-/* ===== Save/Delete ===== */
-$("btnSave").addEventListener("click", async () => {
-  if (!isAdmin) return alert("KHÁCH không lưu được.");
+function init(){
+  UI.openLogin();
 
-  const payload = {
-    token,
-    id: $("p_id").value.trim(),
-    oem: $("p_oem").value.trim(),
-    oem_alts: $("p_oem_alts").value.trim(),
-    ten: $("p_ten").value.trim(),
-    dvt: $("p_dvt").value.trim(),
-    loai: $("p_loai").value.trim(),
-    brand: $("p_brand").value.trim(),
-    price: Number($("p_price").value || 0),
-    image: $("p_image_url").value.trim()
+  $('guestBtn').onclick = async () => {
+    S.role = 'guest';
+    UI.closeLogin();
+    await loadData();
   };
-  if (!payload.oem) return alert("Thiếu OEM");
-  if (!payload.ten) return alert("Thiếu Tên");
 
-  const action = payload.id ? "updateProduct" : "addProduct";
-  const res = await api(action, payload);
-  if (!res.ok) return alert("Lỗi: " + (res.error || "unknown"));
+  $('adminBtn').onclick = () => { $('adminForm').style.display = 'block'; };
 
-  alert("Đã lưu!");
-  closeModal();
-  await loadProducts(false);
-});
+  $('loginBtn').onclick = async () => {
+    const name = $('adminName').value.trim();
+    const token = $('adminToken').value.trim();
+    const res = await API.loginAdmin(name, token);
+    if(!res.success) return alert('Sai tên hoặc token!');
+    S.role = 'admin';
+    S.session = res.session;
+    UI.closeLogin();
+    await loadData();
+  };
 
-$("btnDelete").addEventListener("click", async () => {
-  if (!isAdmin) return;
-  const id = $("p_id").value.trim();
-  if (!id) return;
-  if (!confirm("Xóa sản phẩm này?")) return;
+  $('btnLogout').onclick = () => {
+    S.role = null; S.session = null;
+    $('adminName').value=''; $('adminToken').value='';
+    $('adminForm').style.display='none';
+    UI.openLogin();
+  };
 
-  const res = await api("deleteProduct", { token, id });
-  if (!res.ok) return alert("Lỗi: " + (res.error || "unknown"));
+  $('search').oninput = renderList;
+  $('place').onchange = (e)=>{ S.place = e.target.value; renderList(); };
 
-  alert("Đã xóa!");
-  closeModal();
-  await loadProducts(true);
-});
+  $('btnAdd').onclick = () => UI.show('addModal');
+  $('btnHistory').onclick = () => { renderHistory(); UI.show('historyModal'); };
+  $('btnTrash').onclick = () => { renderTrash(); UI.show('trashModal'); };
 
-/* ===== Events ===== */
-$("btnClose").addEventListener("click", closeModal);
+  $('a_img').onchange = () => {
+    const f = $('a_img').files?.[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = () => { $('a_preview').src = r.result; $('a_preview').style.display='block'; };
+    r.readAsDataURL(f);
+  };
+}
 
-$("btnAdd").addEventListener("click", () => {
-  fillModal({}, "add");
-  openModal();
-});
+async function loadData(){
+  let data;
+  if(S.role === 'admin'){
+    data = await API.getAdmin();
+    if(data.error){
+      alert('Phiên admin hết hạn. Đăng nhập lại.');
+      S.role=null; S.session=null; UI.openLogin();
+      return;
+    }
+    $('btnAdd').hidden = false;
+    $('btnHistory').hidden = false;
+    $('btnTrash').hidden = false;
+  } else {
+    data = await API.getPublic();
+    $('btnAdd').hidden = true;
+    $('btnHistory').hidden = true;
+    $('btnTrash').hidden = true;
+  }
 
-$("btnSearch").addEventListener("click", () => loadProducts(true));
+  S.kho = data.kho || [];
+  S.shop = data.cuahang || [];
+  S.chart = data.chart || [];
+  S.history = data.history || [];
+  S.trash = data.trash || [];
 
-$("btnPrev").addEventListener("click", async () => {
-  page = Math.max(1, page - 1);
-  await loadProducts(false);
-});
-$("btnNext").addEventListener("click", async () => {
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
-  page = Math.min(maxPage, page + 1);
-  await loadProducts(false);
-});
+  renderList();
+  drawChart();
+}
 
-/* ===== Login modal ===== */
-$("pickGuest").addEventListener("click", () => $("adminTokenRow").style.display = "none");
-$("pickAdmin").addEventListener("click", () => $("adminTokenRow").style.display = "block");
+function renderList(){
+  const kw = ($('search').value||'').trim().toLowerCase();
+  const arr = (S.place === 'CUAHANG' ? S.shop : S.kho).filter(p=>{
+    if(!kw) return true;
+    return [p.oem,p.ten,p.thuong_hieu,p.loai,p.oem_thay_the].some(x=>String(x||'').toLowerCase().includes(kw));
+  });
 
-$("btnGuestEnter").addEventListener("click", () => {
-  token = "";
-  setRole(false);
-  closeLogin();
-});
+  $('list').innerHTML = arr.map(p=>`
+    <div class="card">
+      <img src="${p.hinh_anh||''}" alt="">
+      <div class="p">
+        <div class="name">${esc(p.ten)}</div>
+        <p class="meta">OEM: ${esc(p.oem)}</p>
+        <p class="meta">Giá: ${money(p.gia)} | SL: ${p.so_luong}</p>
+        <div class="row">
+          <button class="btn" onclick="openDetail('${encodeURIComponent(JSON.stringify(p))}')">Chi tiết</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
 
-$("btnAdminEnter").addEventListener("click", async () => {
-  const t = $("loginAdminToken").value.trim();
-  if (!t) return alert("Nhập token admin");
+window.openDetail = (encoded) => {
+  const p = JSON.parse(decodeURIComponent(encoded));
+  S.current = p;
 
-  const res = await api("verifyAdmin", { token: t });
-  if (!res.ok || !res.isAdmin) return alert("Token sai hoặc chưa ACTIVE");
+  $('d_img').src = p.hinh_anh || '';
+  $('d_name').innerText = p.ten || '';
+  $('d_oem').innerText = p.oem || '';
+  $('d_oemtt').innerText = p.oem_thay_the || '';
+  $('d_gia').innerText = money(p.gia);
 
-  token = t;
-  setRole(true);
-  closeLogin();
-});
+  const inKho = S.kho.find(x=>String(x.id)===String(p.id));
+  const inShop= S.shop.find(x=>String(x.id)===String(p.id));
+  $('d_kho').innerText = inKho ? inKho.so_luong : 0;
+  $('d_shop').innerText = inShop ? inShop.so_luong : 0;
 
-/* ===== Init ===== */
-(function init() {
-  openLogin();
-  setRole(false);
-  loadProducts(true);
-})();
+  $('adminActions').hidden = (S.role !== 'admin');
+  $('qty').value = '';
+
+  renderAlternatives();
+  UI.show('detailModal');
+};
+
+function renderAlternatives(){
+  const p = S.current;
+  const myOem = String(p.oem||'').trim();
+  const myAlt = splitOems(p.oem_thay_the);
+
+  const all = S.kho.concat(S.shop);
+  const alts = all.filter(x=>{
+    if(String(x.id)===String(p.id)) return false;
+    const oem = String(x.oem||'').trim();
+    const xAlt = splitOems(x.oem_thay_the);
+    return (oem && (myAlt.includes(oem) || xAlt.includes(myOem) || oem===myOem));
+  });
+
+  $('altList').innerHTML = alts.length
+    ? alts.map(x=>`<li>${esc(x.ten)} — ${money(x.gia)} (OEM: ${esc(x.oem)})</li>`).join('')
+    : `<li>Không có dữ liệu thay thế</li>`;
+}
+
+function renderHistory(){
+  const rows = (S.history||[]).slice().reverse().map(h=>`
+    <div class="panel" style="margin:8px 0">
+      <b>${esc(h.action)}</b> | ${esc(String(h.time))}<br/>
+      ${esc(h.ten)} | SL: ${esc(String(h.so_luong))} | ${esc(h.noi)}<br/>
+      <i>${esc(h.ghi_chu||'')}</i>
+    </div>
+  `).join('');
+  $('historyList').innerHTML = rows || `<div class="panel">Chưa có lịch sử</div>`;
+}
+
+function renderTrash(){
+  if(!S.trash || !S.trash.length){
+    $('trashList').innerHTML = `<div class="panel">Thùng rác trống</div>`;
+    return;
+  }
+  $('trashList').innerHTML = S.trash.map(t=>`
+    <div class="panel" style="display:flex;gap:10px;align-items:center">
+      <img src="${t.hinh_anh||''}" style="width:90px;height:90px;object-fit:cover;border-radius:12px;background:#eaf7ff">
+      <div style="flex:1">
+        <b>${esc(t.ten)}</b><br/>
+        OEM: ${esc(t.oem)} | Origin: ${esc(t.origin)} | SL: ${esc(String(t.so_luong))}
+        <div style="margin-top:8px">
+          <button class="btn primary" onclick="API.restore(${t.trash_row}, '${escJS(t.oem)}')">♻ Khôi phục</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function drawChart(){
+  const labels = (S.chart||[]).map(x=>x.ten);
+  const kho = (S.chart||[]).map(x=>x.kho);
+  const shop= (S.chart||[]).map(x=>x.cuahang);
+
+  if(S.chartObj) S.chartObj.destroy();
+  S.chartObj = new Chart($('chart'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Kho', data:kho },
+      { label:'Cửa hàng', data:shop }
+    ]},
+    options:{
+      responsive:true,
+      plugins:{ legend:{ position:'bottom' } },
+      scales:{ x:{ ticks:{ display:false } } }
+    }
+  });
+}
+
+/************ utils ************/
+function money(n){ return Number(n||0).toLocaleString('vi-VN')+' đ'; }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+function escJS(s){ return String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function splitOems(s){ return String(s||'').split(',').map(x=>x.trim()).filter(Boolean); }
+
+function fileToDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=>resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
