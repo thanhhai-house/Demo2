@@ -10,7 +10,6 @@
   --warning:#f59e0b;
   --danger:#ef4444;
 }
-
 *{box-sizing:border-box}
 body{
   margin:0;color:var(--text);
@@ -20,7 +19,6 @@ body{
             linear-gradient(135deg,var(--bg1),var(--bg2));
   min-height:100vh;
 }
-
 .header{
   position:sticky;top:0;z-index:10;
   backdrop-filter:blur(10px);
@@ -37,7 +35,6 @@ body{
 .tokenBox{display:flex;gap:8px;align-items:center}
 
 .container{padding:18px;max-width:1200px;margin:0 auto}
-
 .panel{
   background:var(--card);border:1px solid var(--stroke);
   border-radius:18px;padding:14px;
@@ -121,6 +118,5 @@ label{font-size:12px;color:var(--muted)}
 
 .stockBox{margin-top:10px;border:1px dashed rgba(20,50,70,.22);background:rgba(255,255,255,.6);border-radius:14px;padding:10px}
 .stockLine{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px}
-.billMini{margin-top:10px}
 .altBox{margin-top:10px;padding:10px;border-radius:14px;border:1px solid var(--stroke);background:rgba(29,111,242,.06)}
 .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
