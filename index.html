@@ -1,161 +1,246 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Quản lý kho phụ tùng</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
-
-<header class="header">
-  <img class="banner" src="truck.jpg" alt="truck">
-  <div class="title">QUẢN LÝ KHO PHỤ TÙNG</div>
-</header>
-
-<section class="toolbar">
-  <input id="search" placeholder="Tìm: OEM / tên / thương hiệu / loại..." />
-  <select id="place">
-    <option value="KHO">KHO</option>
-    <option value="CUAHANG">CỬA HÀNG</option>
-  </select>
-
-  <button id="btnAdd" class="btn primary" hidden>➕ Thêm</button>
-  <button id="btnHistory" class="btn" hidden>📜 Lịch sử</button>
-  <button id="btnTrash" class="btn danger" hidden>🗑 Thùng rác</button>
-  <button id="btnLogout" class="btn">↩ Đổi vai</button>
-</section>
-
-<section class="panel">
-  <div class="panel-title">Biểu đồ tồn kho (Top 30)</div>
-  <canvas id="chart"></canvas>
-</section>
-
-<section id="list" class="grid"></section>
-
-<!-- LOGIN MODAL -->
-<div id="loginModal" class="modal">
-  <div class="box">
-    <div class="box-title">Chọn vai trò</div>
-
-    <div class="row">
-      <button class="btn primary w100" id="guestBtn">👤 Khách (chỉ xem)</button>
-    </div>
-
-    <div class="row">
-      <button class="btn w100" id="adminBtn">👑 Admin</button>
-    </div>
-
-    <div id="adminForm" style="display:none">
-      <div class="row"><input id="adminName" placeholder="Tên admin"></div>
-      <div class="row"><input id="adminToken" placeholder="Token admin" type="password"></div>
-      <div class="row"><button class="btn primary w100" id="loginBtn">Đăng nhập</button></div>
-      <div class="hint">Tên + Token được hard-code trong Apps Script.</div>
-    </div>
-  </div>
-</div>
-
-<!-- DETAIL MODAL -->
-<div id="detailModal" class="modal">
-  <div class="box wide">
-    <div class="box-head">
-      <div class="box-title">Chi tiết sản phẩm</div>
-      <button class="x" onclick="UI.closeDetail()">✕</button>
-    </div>
-
-    <img id="d_img" class="img" />
-    <div id="d_name" class="name"></div>
-
-    <div class="kv">
-      <div>OEM</div><div id="d_oem"></div>
-      <div>OEM thay thế</div><div id="d_oemtt"></div>
-      <div>Giá</div><div id="d_gia"></div>
-      <div>📦 Kho</div><div><b id="d_kho"></b></div>
-      <div>🏪 Cửa hàng</div><div><b id="d_shop"></b></div>
-    </div>
-
-    <div id="adminActions" class="actions" hidden>
-      <input id="qty" type="number" placeholder="Số lượng" />
-      <div class="wrap">
-        <button class="btn" onclick="API.nhap('KHO')">➕ Nhập kho</button>
-        <button class="btn" onclick="API.xuat('KHO')">➖ Xuất kho</button>
-        <button class="btn" onclick="API.nhap('CUAHANG')">➕ Nhập cửa hàng</button>
-        <button class="btn" onclick="API.xuat('CUAHANG')">➖ Xuất cửa hàng</button>
-        <button class="btn" onclick="API.transfer('KHO','CUAHANG')">🔁 Kho→Cửa hàng</button>
-        <button class="btn" onclick="API.transfer('CUAHANG','KHO')">🔁 Cửa hàng→Kho</button>
-        <button class="btn primary" onclick="API.sell()">🧾 Bán</button>
-        <button class="btn" onclick="UI.printBill()">🖨 In bill</button>
-        <button class="btn danger" onclick="API.deleteSoft()">🗑 Xóa mềm</button>
+  <header class="header">
+    <div class="header__left">
+      <img class="truck" src="./truck.png" alt="Xe đầu kéo" onerror="this.style.display='none'">
+      <div>
+        <div class="title">Quản lý kho phụ tùng</div>
+        <div class="subtitle">Kho & Cửa hàng • Nhập/Xuất/Chuyển • Ảnh Drive</div>
       </div>
     </div>
 
-    <div class="panel-title" style="margin-top:10px">Sản phẩm thay thế</div>
-    <ul id="altList" class="alt"></ul>
+    <div class="header__right">
+      <div class="tokenBox">
+        <input id="tokenInput" class="input" placeholder="Nhập token..." />
+        <button id="btnLogin" class="btn btn--primary">Đăng nhập</button>
+      </div>
+      <div id="roleBadge" class="badge badge--guest">Chưa đăng nhập</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <div class="panel__row">
+        <div class="field">
+          <label>Tìm kiếm</label>
+          <input id="q" class="input" placeholder="Tên, OEM, OEM thay thế, thương hiệu, loại..." />
+        </div>
+
+        <div class="field">
+          <label>Thương hiệu</label>
+          <select id="brandFilter" class="input"></select>
+        </div>
+
+        <div class="field">
+          <label>Loại</label>
+          <select id="typeFilter" class="input"></select>
+        </div>
+
+        <div class="field">
+          <label>Tồn</label>
+          <select id="stockFilter" class="input">
+            <option value="all">Tất cả</option>
+            <option value="in">Còn hàng</option>
+            <option value="out">Hết hàng</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>&nbsp;</label>
+          <button id="btnReload" class="btn">Tải lại</button>
+        </div>
+      </div>
+
+      <div class="panel__row panel__row--right">
+        <button id="btnAdd" class="btn btn--success adminOnly">+ Thêm sản phẩm (ID tự tạo)</button>
+      </div>
+    </section>
+
+    <section class="tableWrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Ảnh</th>
+            <th>Mã</th>
+            <th>Tên</th>
+            <th>Thương hiệu</th>
+            <th>Loại</th>
+            <th>OEM</th>
+            <th>OEM thay thế</th>
+            <th class="right">Giá</th>
+            <th class="right">Kho</th>
+            <th class="right">Cửa hàng</th>
+            <th>Hành động</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+
+      <div id="emptyState" class="empty">Chưa có dữ liệu. Hãy đăng nhập và bấm “Tải lại”.</div>
+    </section>
+  </main>
+
+  <!-- MODAL -->
+  <div id="modal" class="modal hidden">
+    <div class="modal__overlay" id="modalOverlay"></div>
+    <div class="modal__card">
+      <div class="modal__head">
+        <div>
+          <div id="modalTitle" class="modal__title">Chi tiết sản phẩm</div>
+          <div id="modalHint" class="modal__hint"></div>
+        </div>
+        <button id="modalClose" class="btn btn--ghost">✕</button>
+      </div>
+
+      <div class="modal__body">
+        <div class="grid">
+          <div class="imgBox">
+            <img id="imgPreview" alt="preview" />
+            <div class="imgMeta">
+              <input id="imgFile" class="input adminOnly" type="file" accept="image/*"/>
+              <button id="btnUpload" class="btn btn--primary adminOnly">Upload ảnh</button>
+              <div class="tiny">Preview ngay. Upload xong sẽ xem ảnh thật bằng link Drive.</div>
+            </div>
+          </div>
+
+          <div class="form">
+            <div class="row2">
+              <div class="field">
+                <label>ID (web tự tạo)</label>
+                <input id="f_id" class="input" readonly />
+              </div>
+              <div class="field">
+                <label>Giá</label>
+                <input id="f_price" class="input" type="number" min="0" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Tên</label>
+              <input id="f_name" class="input"/>
+            </div>
+
+            <div class="row2">
+              <div class="field">
+                <label>Thương hiệu</label>
+                <input id="f_brand" class="input"/>
+              </div>
+              <div class="field">
+                <label>Loại</label>
+                <input id="f_type" class="input"/>
+              </div>
+            </div>
+
+            <div class="row2">
+              <div class="field">
+                <label>OEM</label>
+                <input id="f_oem" class="input"/>
+              </div>
+              <div class="field">
+                <label>OEM thay thế</label>
+                <input id="f_oem_alt" class="input" placeholder="VD: 123,456,789"/>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Thông tin sản phẩm</label>
+              <textarea id="f_info" class="input" rows="4"></textarea>
+            </div>
+
+            <div class="field">
+              <label>Image URL (Drive)</label>
+              <input id="f_image_url" class="input" placeholder="https://drive.google.com/uc?id=..."/>
+            </div>
+
+            <div class="stockBox">
+              <div class="stockLine">
+                <div><b>Kho:</b> <span id="s_kho">0</span></div>
+                <div><b>Cửa hàng:</b> <span id="s_ch">0</span></div>
+              </div>
+
+              <!-- NHẬP/XUẤT: KHO/CỬA HÀNG/CẢ 2 -->
+              <div class="adminOnly">
+                <div class="tiny"><b>Nhập / Xuất</b> (chọn phạm vi)</div>
+                <div class="row3">
+                  <select id="adjScope" class="input">
+                    <option value="KHO">KHO</option>
+                    <option value="CUAHANG">CUAHANG</option>
+                    <option value="BOTH">CẢ 2 (KHO + CỬA HÀNG)</option>
+                  </select>
+                  <input id="adjQty" class="input" type="number" placeholder="Số lượng (lớn)" />
+                  <select id="adjType" class="input">
+                    <option value="NHAP">NHẬP</option>
+                    <option value="XUAT">XUẤT</option>
+                  </select>
+                </div>
+                <div class="row2">
+                  <input id="adjNote" class="input" placeholder="Ghi chú (tuỳ chọn)"/>
+                  <button id="btnAdjust" class="btn btn--warning">Thực hiện</button>
+                </div>
+
+                <div class="sep"></div>
+
+                <!-- CHUYỂN -->
+                <div class="tiny"><b>Chuyển</b> giữa Kho ↔ Cửa hàng</div>
+                <div class="row3">
+                  <select id="trFrom" class="input">
+                    <option value="KHO">Từ KHO</option>
+                    <option value="CUAHANG">Từ CỬA HÀNG</option>
+                  </select>
+                  <select id="trTo" class="input">
+                    <option value="CUAHANG">Sang CỬA HÀNG</option>
+                    <option value="KHO">Sang KHO</option>
+                  </select>
+                  <input id="trQty" class="input" type="number" placeholder="Số lượng" />
+                </div>
+                <div class="row2">
+                  <input id="trNote" class="input" placeholder="Ghi chú chuyển (tuỳ chọn)"/>
+                  <button id="btnTransfer" class="btn btn--primary">Chuyển</button>
+                </div>
+              </div>
+
+              <div class="adminOnly billMini">
+                <div class="tiny">In bill nhanh (1 sản phẩm):</div>
+                <div class="row2">
+                  <select id="billLocation" class="input">
+                    <option value="KHO">KHO</option>
+                    <option value="CUAHANG">CUAHANG</option>
+                  </select>
+                  <input id="billQty" class="input" type="number" placeholder="SL bán" />
+                </div>
+                <button id="btnBillOne" class="btn btn--primary">In bill</button>
+              </div>
+            </div>
+
+            <div id="altBox" class="altBox hidden"></div>
+
+            <div class="actions">
+              <button id="btnSave" class="btn btn--success adminOnly">Lưu</button>
+              <button id="btnDelete" class="btn btn--danger adminOnly">Xóa sản phẩm</button>
+              <button id="btnCancel" class="btn">Đóng</button>
+            </div>
+
+            <div class="tiny">* Xóa sản phẩm sẽ xóa cả tồn kho (có xác nhận).</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
-</div>
 
-<!-- ADD MODAL -->
-<div id="addModal" class="modal">
-  <div class="box wide">
-    <div class="box-head">
-      <div class="box-title">Thêm sản phẩm</div>
-      <button class="x" onclick="UI.closeAdd()">✕</button>
+  <footer class="footer">
+    <div class="marquee">
+      <div class="marquee__inner">© Bản quyền - Quản lý kho phụ tùng ô tô • © Bản quyền - Quản lý kho phụ tùng ô tô • ©</div>
     </div>
+  </footer>
 
-    <div class="grid2">
-      <input id="a_ten" placeholder="Tên">
-      <input id="a_oem" placeholder="OEM">
-      <input id="a_oemtt" placeholder="OEM thay thế (phẩy , )">
-      <input id="a_brand" placeholder="Thương hiệu">
-      <input id="a_loai" placeholder="Loại">
-      <input id="a_gia" type="number" placeholder="Giá">
-      <input id="a_sl" type="number" placeholder="Số lượng">
-      <select id="a_noi">
-        <option value="KHO">KHO</option>
-        <option value="CUAHANG">CỬA HÀNG</option>
-      </select>
-    </div>
-
-    <div class="row">
-      <input id="a_img" type="file" accept="image/*" capture="environment" />
-      <img id="a_preview" class="img" style="display:none;margin-top:8px" />
-      <textarea id="a_info" placeholder="Thông tin sản phẩm"></textarea>
-    </div>
-
-    <div class="wrap">
-      <button class="btn primary" onclick="API.saveProduct()">Lưu</button>
-      <button class="btn" onclick="UI.closeAdd()">Đóng</button>
-    </div>
-  </div>
-</div>
-
-<!-- HISTORY MODAL -->
-<div id="historyModal" class="modal">
-  <div class="box wide">
-    <div class="box-head">
-      <div class="box-title">Lịch sử</div>
-      <button class="x" onclick="UI.closeHistory()">✕</button>
-    </div>
-    <div id="historyList"></div>
-  </div>
-</div>
-
-<!-- TRASH MODAL -->
-<div id="trashModal" class="modal">
-  <div class="box wide">
-    <div class="box-head">
-      <div class="box-title">Thùng rác</div>
-      <button class="x" onclick="UI.closeTrash()">✕</button>
-    </div>
-    <div id="trashList"></div>
-  </div>
-</div>
-
-<footer class="footer">
-  <marquee>© 2025 Quản lý kho phụ tùng ô tô</marquee>
-</footer>
-
-<script src="app.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
