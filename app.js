@@ -2,8 +2,8 @@
 const API_BASE = "https://script.google.com/macros/s/AKfycbyAZ90WwIyUxr0mEAbPDbkHlXOQm8hLhrURhjW-bfTaOaV_O_vKiGh41_su_zzXwzllyQ/exec";
 
 // ====== STATE ======
-let token = "admin";
-let role = "admin"; // admin | guest | none
+let token = "";
+let role = "none"; // admin | guest | none
 let products = [];
 let current = null;
 let currentMode = "view";
