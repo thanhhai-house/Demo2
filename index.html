@@ -12,7 +12,7 @@
       <img class="truck" src="./truck.png" alt="Xe đầu kéo" onerror="this.style.display='none'">
       <div>
         <div class="title">Quản lý kho phụ tùng</div>
-        <div class="subtitle">Kho & Cửa hàng • Nhập/Xuất/Chuyển • Ảnh Drive</div>
+        <div class="subtitle">Kho & Cửa hàng • Nhập/Xuất/Chuyển • Sản phẩm thay thế</div>
       </div>
     </div>
 
@@ -59,7 +59,7 @@
       </div>
 
       <div class="panel__row panel__row--right">
-        <button id="btnAdd" class="btn btn--success adminOnly">+ Thêm sản phẩm (ID tự tạo)</button>
+        <button id="btnAdd" class="btn btn--success adminOnly">+ Thêm sản phẩm</button>
       </div>
     </section>
 
@@ -90,6 +90,7 @@
   <!-- MODAL -->
   <div id="modal" class="modal hidden">
     <div class="modal__overlay" id="modalOverlay"></div>
+
     <div class="modal__card">
       <div class="modal__head">
         <div>
@@ -104,16 +105,18 @@
           <div class="imgBox">
             <img id="imgPreview" alt="preview" />
             <div class="imgMeta">
+              <div class="tiny">Bạn có thể dán link Drive vào “Image URL”.</div>
+              <div class="tiny adminOnly">Nếu muốn upload: chọn ảnh rồi bấm Upload.</div>
+
               <input id="imgFile" class="input adminOnly" type="file" accept="image/*"/>
               <button id="btnUpload" class="btn btn--primary adminOnly">Upload ảnh</button>
-              <div class="tiny">Preview ngay. Upload xong sẽ xem ảnh thật bằng link Drive.</div>
             </div>
           </div>
 
           <div class="form">
             <div class="row2">
               <div class="field">
-                <label>ID (web tự tạo)</label>
+                <label>ID (backend tạo)</label>
                 <input id="f_id" class="input" readonly />
               </div>
               <div class="field">
@@ -165,9 +168,8 @@
                 <div><b>Cửa hàng:</b> <span id="s_ch">0</span></div>
               </div>
 
-              <!-- NHẬP/XUẤT: KHO/CỬA HÀNG/CẢ 2 -->
               <div class="adminOnly">
-                <div class="tiny"><b>Nhập / Xuất</b> (chọn phạm vi)</div>
+                <div class="tiny"><b>Nhập / Xuất</b></div>
                 <div class="row3">
                   <select id="adjScope" class="input">
                     <option value="KHO">KHO</option>
@@ -187,8 +189,7 @@
 
                 <div class="sep"></div>
 
-                <!-- CHUYỂN -->
-                <div class="tiny"><b>Chuyển</b> giữa Kho ↔ Cửa hàng</div>
+                <div class="tiny"><b>Chuyển</b> Kho ↔ Cửa hàng</div>
                 <div class="row3">
                   <select id="trFrom" class="input">
                     <option value="KHO">Từ KHO</option>
@@ -205,33 +206,20 @@
                   <button id="btnTransfer" class="btn btn--primary">Chuyển</button>
                 </div>
               </div>
-
-              <div class="adminOnly billMini">
-                <div class="tiny">In bill nhanh (1 sản phẩm):</div>
-                <div class="row2">
-                  <select id="billLocation" class="input">
-                    <option value="KHO">KHO</option>
-                    <option value="CUAHANG">CUAHANG</option>
-                  </select>
-                  <input id="billQty" class="input" type="number" placeholder="SL bán" />
-                </div>
-                <button id="btnBillOne" class="btn btn--primary">In bill</button>
-              </div>
             </div>
 
             <div id="altBox" class="altBox hidden"></div>
 
             <div class="actions">
               <button id="btnSave" class="btn btn--success adminOnly">Lưu</button>
-              <button id="btnDelete" class="btn btn--danger adminOnly">Xóa sản phẩm</button>
+              <button id="btnDelete" class="btn btn--danger adminOnly">Xóa</button>
               <button id="btnCancel" class="btn">Đóng</button>
             </div>
 
-            <div class="tiny">* Xóa sản phẩm sẽ xóa cả tồn kho (có xác nhận).</div>
+            <div class="tiny">* Xóa sẽ hỏi xác nhận. Khách chỉ xem.</div>
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
